@@ -1,0 +1,16 @@
+{
+  "seed": 42,
+  "license": "CC0-1.0",
+  "language": "ru",
+  "split": "disjoint template families",
+  "files": {
+    "eval": {
+      "rows": 70,
+      "sha256": "6e5fb1bcad45a893decf43d8f2954d899b7eadd6e46561e80ca033f8cb150264"
+    },
+    "train": {
+      "rows": 1217,
+      "sha256": "012f9798fcb1f612d69b9e3cf53b68c13f3ad957c2678937db3beb94f467af82"
+    }
+  }
+}
