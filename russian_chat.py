@@ -1,14 +1,15 @@
-"""Local Russian assistant using official, already trained Qwen3 weights."""
+"""Local Russian assistant using ready Qwen3-4B-Instruct-2507 GGUF weights (Unsloth conversion)."""
 import argparse
 import re
 from pathlib import Path
 
-MODEL_ID = 'Qwen/Qwen3-1.7B'
-MODEL_REVISION = '70d244cc86ccca08cf5af4e1e306ecf908b1ad5e'
+MODEL_ID = 'unsloth/Qwen3-4B-Instruct-2507-GGUF'
+MODEL_FILE = 'Qwen3-4B-Instruct-2507-Q4_K_M.gguf'
+MODEL_REVISION = 'a06e946bb6b655725eafa393f4a9745d460374c9'
 SYSTEM = ('Ты полезный русскоязычный помощник. Всегда отвечай по-русски, даже если '
           'собеседник просит сменить язык. Отвечай понятно и по существу. '
           'Если не знаешь ответа, честно скажи об этом. Имена, ссылки и программный код '
-          'можно оставлять в оригинале. Не выдавай себя за рыбку.')
+          'можно оставлять в оригинале.')
 FALLBACK = 'Не удалось сформировать ответ на русском языке. Пожалуйста, переформулируйте вопрос.'
 
 
@@ -30,48 +31,37 @@ def make_messages(history, question):
 
 
 class RussianChat:
-    def __init__(self, model_dir='models/qwen3-1.7b', device='auto', offline=False, precision='auto'):
-        import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer
-        self.torch = torch
-        self.device = 'cuda' if device == 'auto' and torch.cuda.is_available() else ('cpu' if device == 'auto' else device)
-        self.tokenizer = AutoTokenizer.from_pretrained(model_dir, local_files_only=offline, trust_remote_code=False)
-        dtype = {'float32': torch.float32, 'float16': torch.float16, 'bfloat16': torch.bfloat16}.get(precision)
-        if dtype is None:
-            dtype = torch.float16 if self.device == 'cuda' else torch.float32
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_dir, torch_dtype=dtype,
-            local_files_only=offline, trust_remote_code=False, use_safetensors=True,
-        ).to(self.device).eval()
+    def __init__(self, model_dir='models/qwen3-4b', gpu_layers=0, offline=False):
+        from llama_cpp import Llama
+        import os
+        self.model = Llama(
+            model_path=str(Path(model_dir) / MODEL_FILE), n_ctx=4096,
+            n_batch=256, n_threads=min(os.cpu_count() or 2, 8),
+            n_gpu_layers=gpu_layers, verbose=False,
+        )
+
+    @staticmethod
+    def format_prompt(messages):
+        return ''.join(f"<|im_start|>{m['role']}\n{m['content']}<|im_end|>\n" for m in messages) + '<|im_start|>assistant\n'
+
+    def count_tokens(self, messages):
+        return len(self.model.tokenize(self.format_prompt(messages).encode('utf-8'), special=True))
 
     def _generate(self, messages, max_tokens):
-        prompt = self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True, enable_thinking=True)
-        inputs = self.tokenizer(prompt, return_tensors='pt').to(self.device)
-        # Reject an overlong current question rather than silently losing the system prompt.
-        if inputs.input_ids.shape[1] + max_tokens > 4096:
+        tokens = self.model.tokenize(self.format_prompt(messages).encode('utf-8'), special=True)
+        if len(tokens) + max_tokens > 4096:
             raise ValueError('Слишком длинный запрос. Сократите текст или введите /clear.')
-        with self.torch.inference_mode():
-            ids = self.model.generate(
-                **inputs, max_new_tokens=max_tokens, do_sample=True, temperature=0.6,
-                top_p=0.95, top_k=20, repetition_penalty=1.1,
-                pad_token_id=self.tokenizer.eos_token_id,
-            )
-        output = ids[0, inputs.input_ids.shape[1]:].tolist()
-        end_thinking = self.tokenizer.convert_tokens_to_ids('</think>')
-        if end_thinking in output:
-            output = output[len(output) - output[::-1].index(end_thinking):]
-        else:
-            # Never show an unfinished reasoning block as the final answer.
-            return ''
-        return self.tokenizer.decode(output, skip_special_tokens=True).strip()
+        result = self.model.create_completion(
+            prompt=tokens, max_tokens=max_tokens, temperature=0.7,
+            top_p=0.8, top_k=20, repeat_penalty=1.1,
+            stop=['<|im_end|>', '<|endoftext|>'],
+        )
+        return result['choices'][0]['text'].strip()
 
-    def answer(self, question, history=None, max_tokens=768):
+    def answer(self, question, history=None, max_tokens=512):
         history = list(history or [])
         while history:
-            prompt = self.tokenizer.apply_chat_template(make_messages(history, question), tokenize=True,
-                                                        add_generation_prompt=True, enable_thinking=True)
-            if len(prompt) + max_tokens <= 4096:
+            if self.count_tokens(make_messages(history, question)) + max_tokens <= 4096:
                 break
             history = history[2:]
         messages = make_messages(history, question)
@@ -83,21 +73,20 @@ class RussianChat:
 
 
 def download(model_dir):
-    from huggingface_hub import snapshot_download
-    # A complete local snapshot includes weights, tokenizer, config and license.
-    snapshot_download(MODEL_ID, revision=MODEL_REVISION, local_dir=model_dir,
-                      allow_patterns=['*.json', '*.safetensors', '*.txt', 'LICENSE', 'README.md'])
+    from huggingface_hub import hf_hub_download
+    print('Загрузка/проверка готовой модели: при первом запуске около 2.5 ГБ.', flush=True)
+    for filename in (MODEL_FILE, 'README.md'):
+        hf_hub_download(MODEL_ID, filename=filename, revision=MODEL_REVISION, local_dir=model_dir)
 
 
 def main():
     parser = argparse.ArgumentParser(description='Локальный помощник на русском языке')
-    parser.add_argument('--model-dir', default='models/qwen3-1.7b')
-    parser.add_argument('--device', choices=['auto', 'cpu', 'cuda'], default='auto')
-    parser.add_argument('--precision', choices=['auto', 'float32', 'float16', 'bfloat16'], default='auto')
+    parser.add_argument('--model-dir', default='models/qwen3-4b')
+    parser.add_argument('--gpu-layers', type=int, default=0, help='0: CPU; -1: GPU (нужна сборка llama-cpp-python с CUDA)')
     parser.add_argument('--download-only', action='store_true')
     parser.add_argument('--offline', action='store_true')
     parser.add_argument('--prompt', '-p')
-    parser.add_argument('--max-tokens', type=int, default=768)
+    parser.add_argument('--max-tokens', type=int, default=512)
     args = parser.parse_args()
     if not 1 <= args.max_tokens <= 2048:
         parser.error('--max-tokens должен быть от 1 до 2048')
@@ -109,9 +98,9 @@ def main():
         return
     if not args.offline:
         download(args.model_dir)
-    elif not Path(args.model_dir, 'config.json').is_file():
+    elif not Path(args.model_dir, MODEL_FILE).is_file():
         parser.error('Модель не скачана. Сначала запустите без --offline.')
-    engine = RussianChat(args.model_dir, args.device, offline=True, precision=args.precision)
+    engine = RussianChat(args.model_dir, args.gpu_layers, offline=True)
     if args.prompt:
         print(engine.answer(args.prompt, max_tokens=args.max_tokens))
         return

@@ -3,13 +3,13 @@ chcp 65001 >nul
 cd /d "%~dp0"
 where python >nul 2>&1
 if errorlevel 1 (
- echo Установите Python 3.10 или новее с python.org и включите Add Python to PATH.
+ echo Установите 64-битный Python 3.12 с python.org и включите Add Python to PATH.
  pause
  exit /b 1
 )
 if not exist .venv-chat\Scripts\python.exe python -m venv .venv-chat
 if errorlevel 1 goto :fail
-.venv-chat\Scripts\python.exe -m pip install -r requirements-chat.txt
+.venv-chat\Scripts\python.exe -m pip install --only-binary=:all: --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu -r requirements-chat.txt
 if errorlevel 1 goto :fail
 .venv-chat\Scripts\python.exe russian_chat.py %*
 if errorlevel 1 goto :fail
