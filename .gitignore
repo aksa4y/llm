@@ -53,3 +53,7 @@ Desktop.ini
 *.log
 *.tmp
 *.bak
+
+# Downloaded ready model and separate chat environment
+models/
+.venv-chat/
