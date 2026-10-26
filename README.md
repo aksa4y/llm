@@ -9,7 +9,7 @@
 ## Windows
 
 Установите **64-битный Python 3.12** с python.org, включив Add Python to PATH,
-и запустите **run.bat**. Скрипт создаст окружение, установит готовую сборку
+и запустите **run.bat** (или **chat_ru.bat**, это тот же запуск). Скрипт создаст окружение, установит готовую сборку
 llama.cpp для CPU, скачает веса и откроет чат. Visual Studio и PyTorch не нужны.
 Первый запуск требует интернета и около 2.5 ГБ загрузки модели.
 Веса сохраняются в `models/qwen3-4b`; они не включены в GitHub.
@@ -67,7 +67,7 @@ python -m unittest discover -s tests -p test_ready_chat.py -v
 ## Экспериментальная GuppyLM
 
 Прежний код и корпус оставлены отдельно для экспериментов.
-`train_ru.bat` и `chat_ru.bat` относятся только к маленькой GuppyLM.
+`train_ru.bat` и `chat_guppy.bat` относятся только к маленькой GuppyLM.
 Веса Qwen с этой архитектурой несовместимы; для готового помощника используйте run.bat.
 
 # GuppyLM-RU
@@ -92,7 +92,7 @@ python -m guppylm train --device auto --max-steps 10000
 python -m guppylm chat --checkpoint checkpoints/final_model.pt
 ```
 
-На Windows можно запустить `train_ru.bat`, затем `chat_ru.bat`.
+На Windows можно запустить `train_ru.bat`, затем `chat_guppy.bat`.
 Обучение выполняется с нуля: новый токенизатор несовместим с исходными весами.
 Команда download заблокирована, чтобы случайно не подменить русский токенизатор английским.
 Видеопамять и время обучения зависят от устройства. CUDA используется при наличии подходящей сборки PyTorch.

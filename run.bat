@@ -1,21 +1,27 @@
 @echo off
+setlocal
 chcp 65001 >nul
+set PYTHONUTF8=1
+set PYTHONIOENCODING=utf-8
 cd /d "%~dp0"
 where python >nul 2>&1
 if errorlevel 1 (
- echo Установите 64-битный Python 3.12 с python.org и включите Add Python to PATH.
+ echo Python was not found. Install Python 3.12 x64 from python.org.
+ echo Enable the Add Python to PATH option, then run this file again.
  pause
  exit /b 1
 )
-if not exist .venv-chat\Scripts\python.exe python -m venv .venv-chat
+if exist ".venv-chat\Scripts\python.exe" goto :install
+python -m venv .venv-chat
 if errorlevel 1 goto :fail
-.venv-chat\Scripts\python.exe -m pip install --only-binary=:all: --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu -r requirements-chat.txt
+:install
+".venv-chat\Scripts\python.exe" -m pip install --only-binary=:all: --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu -r requirements-chat.txt
 if errorlevel 1 goto :fail
-.venv-chat\Scripts\python.exe russian_chat.py %*
+".venv-chat\Scripts\python.exe" russian_chat.py %*
 if errorlevel 1 goto :fail
 pause
 exit /b 0
 :fail
-echo Не удалось запустить помощника. Смотрите сообщение выше.
+echo Failed. Please check the error message above.
 pause
 exit /b 1
