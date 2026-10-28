@@ -17,7 +17,7 @@ if errorlevel 1 goto :fail
 :install
 ".venv-chat\Scripts\python.exe" -m pip install --only-binary=:all: --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu -r requirements-chat.txt
 if errorlevel 1 goto :fail
-".venv-chat\Scripts\python.exe" russian_chat.py %*
+".venv-chat\Scripts\python.exe" chat_server.py %*
 if errorlevel 1 goto :fail
 pause
 exit /b 0
