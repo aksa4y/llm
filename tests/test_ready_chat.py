@@ -30,7 +30,7 @@ class ReadyChatTests(unittest.TestCase):
 class ContextTests(unittest.TestCase):
     def test_trim_old_turns_keep_system_and_question(self):
         engine = RussianChat.__new__(RussianChat)
-        engine.count_tokens = Mock(side_effect=[4096, 300])
+        engine.count_tokens = Mock(side_effect=[8192, 300])
         engine._generate = Mock(return_value='Привет!')
         history = [{'role': 'user', 'content': 'старый вопрос'},
                    {'role': 'assistant', 'content': 'старый ответ'},
@@ -52,6 +52,6 @@ class ContextTests(unittest.TestCase):
         self.assertTrue(engine.format_prompt(messages).endswith('<|im_start|>assistant\n'))
         self.assertEqual(engine._generate(messages, 32), 'Привет!')
         self.assertEqual(engine.model.create_completion.call_args.kwargs['prompt'], [1, 2, 3])
-        engine.model.tokenize.return_value = [1] * 4090
+        engine.model.tokenize.return_value = [1] * 8190
         with self.assertRaises(ValueError):
             engine._generate(messages, 32)

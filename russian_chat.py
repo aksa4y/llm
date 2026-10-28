@@ -8,6 +8,7 @@ MODEL_FILE = 'Qwen3-4B-Instruct-2507-Q4_K_M.gguf'
 MODEL_REVISION = 'a06e946bb6b655725eafa393f4a9745d460374c9'
 SYSTEM = ('Ты полезный русскоязычный помощник. Всегда отвечай по-русски, даже если '
           'собеседник просит сменить язык. Отвечай понятно и по существу. '
+          'Если пользователь не просит кратко, давай развёрнутый ответ: объяснение, важные детали и примеры, когда они полезны. Не ограничивайся парой фраз. '
           'Если не знаешь ответа, честно скажи об этом. Имена, ссылки и программный код '
           'можно оставлять в оригинале.')
 FALLBACK = 'Не удалось сформировать ответ на русском языке. Пожалуйста, переформулируйте вопрос.'
@@ -35,7 +36,7 @@ class RussianChat:
         from llama_cpp import Llama
         import os
         self.model = Llama(
-            model_path=str(Path(model_dir) / MODEL_FILE), n_ctx=4096,
+            model_path=str(Path(model_dir) / MODEL_FILE), n_ctx=8192,
             n_batch=256, n_threads=min(os.cpu_count() or 2, 8),
             n_gpu_layers=gpu_layers, verbose=False,
         )
@@ -49,7 +50,7 @@ class RussianChat:
 
     def _generate(self, messages, max_tokens):
         tokens = self.model.tokenize(self.format_prompt(messages).encode('utf-8'), special=True)
-        if len(tokens) + max_tokens > 4096:
+        if len(tokens) + max_tokens > 8192:
             raise ValueError('Слишком длинный запрос. Сократите текст или введите /clear.')
         result = self.model.create_completion(
             prompt=tokens, max_tokens=max_tokens, temperature=0.7,
@@ -58,10 +59,10 @@ class RussianChat:
         )
         return result['choices'][0]['text'].strip()
 
-    def answer(self, question, history=None, max_tokens=512):
+    def answer(self, question, history=None, max_tokens=1536):
         history = list(history or [])
         while history:
-            if self.count_tokens(make_messages(history, question)) + max_tokens <= 4096:
+            if self.count_tokens(make_messages(history, question)) + max_tokens <= 8192:
                 break
             history = history[2:]
         messages = make_messages(history, question)
@@ -86,10 +87,10 @@ def main():
     parser.add_argument('--download-only', action='store_true')
     parser.add_argument('--offline', action='store_true')
     parser.add_argument('--prompt', '-p')
-    parser.add_argument('--max-tokens', type=int, default=512)
+    parser.add_argument('--max-tokens', type=int, default=1536)
     args = parser.parse_args()
-    if not 1 <= args.max_tokens <= 2048:
-        parser.error('--max-tokens должен быть от 1 до 2048')
+    if not 1 <= args.max_tokens <= 3072:
+        parser.error('--max-tokens должен быть от 1 до 3072')
     if args.download_only:
         if args.offline:
             parser.error('--offline нельзя сочетать с --download-only')

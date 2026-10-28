@@ -80,22 +80,28 @@ def make_handler(state):
             origin = self.headers.get('Origin')
             if origin and origin not in (f'http://127.0.0.1:{self.server.server_port}', f'http://localhost:{self.server.server_port}'):
                 return self.respond(403, {'error': 'Недопустимый источник'})
-            if self.path != '/api/chat':
+            if self.path not in ('/api/chat', '/api/attachments'):
                 return self.respond(404, {'error': 'Не найдено'})
             try:
                 size = int(self.headers.get('Content-Length', '0'))
-                if not 0 < size <= 262144:
+                if not 0 < size <= (30 * 1024 * 1024 if self.path == '/api/attachments' else 2 * 1024 * 1024):
                     return self.respond(413, {'error': 'Слишком большой запрос'})
                 payload = json.loads(self.rfile.read(size))
+                if self.path == '/api/attachments':
+                    from attachments import unpack_files
+                    try:
+                        return self.respond(200, {'attachments': unpack_files(payload.get('files'))})
+                    except Exception as error:
+                        return self.respond(400, {'error': str(error)})
                 question, history = payload.get('message'), payload.get('history', [])
-                limit = payload.get('max_tokens', 512)
+                limit = payload.get('max_tokens', 1536)
                 if not isinstance(question, str) or not question.strip() or len(question) > 16000:
                     raise ValueError('Введите сообщение длиной до 16 000 символов')
-                if type(limit) is not int or limit not in (256, 512, 1024):
+                if type(limit) is not int or limit not in (256, 512, 1024, 1536, 2048, 3072):
                     raise ValueError('Неверный лимит ответа')
                 if not isinstance(history, list) or len(history) > 12:
                     raise ValueError('Слишком длинная история')
-                if any(not isinstance(m, dict) or m.get('role') not in ('user', 'assistant') or not isinstance(m.get('content'), str) or len(m['content']) > 16000 for m in history):
+                if any(not isinstance(m, dict) or m.get('role') not in ('user', 'assistant') or not isinstance(m.get('content'), str) or len(m['content']) > 90000 for m in history):
                     raise ValueError('Неверный формат истории')
             except (ValueError, TypeError, AttributeError) as error:
                 return self.respond(400, {'error': str(error)})
@@ -105,13 +111,16 @@ def make_handler(state):
                 return self.respond(409, {'error': 'Модель уже отвечает. Дождитесь завершения.'})
             try:
                 state.phase = 'busy'
-                answer = state.engine.answer(question.strip(), history, max_tokens=limit)
-                self.respond(200, {'answer': answer})
+                from attachments import attach_context
+                context, truncated = attach_context(question.strip(), payload.get('attachments', []), state.engine, limit)
+                answer = state.engine.answer(context, history, max_tokens=limit)
+                status, response = 200, {'answer': answer, 'context': context, 'truncated': truncated}
             except Exception as error:
-                self.respond(500, {'error': str(error)})
+                status, response = 500, {'error': str(error)}
             finally:
                 state.phase = 'ready'
                 state.lock.release()
+            self.respond(status, response)
     return Handler
 
 
