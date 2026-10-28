@@ -185,7 +185,9 @@ def attach_context(question, attachments, engine, max_tokens):
         return '\n'.join(parts)
     def fits(value):
         from russian_chat import make_messages
-        return engine.count_tokens(make_messages([], value)) + max_tokens + 128 <= 8192
+        model_id = getattr(engine, 'model_id', 'lite')
+        model_id = model_id if isinstance(model_id, str) else 'lite'
+        return engine.count_tokens(make_messages([], value, model_id)) + max_tokens + 128 + (2048 if model_id == 'pro' else 0) <= 8192
     if fits(compose(1)):
         return compose(1), False
     low, high = 0.0, 1.0

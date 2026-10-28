@@ -26,7 +26,7 @@ class PersonaTests(unittest.TestCase):
 
     def test_brand_output_and_obfuscation(self):
         for value in ['Qwen3', 'Qwen3-4B-Instruct-2507', 'Q W E N 3', 'Ｑｗｅｎ３', 'Q\u200bw\u200be\u200bn', 'Квен', 'Куэн']:
-            self.assertEqual(brand_answer(value), 'Тихо', value)
+            self.assertEqual(brand_answer(value), 'Тихо Lite', value)
         engine = RussianChat.__new__(RussianChat)
         engine._generate = Mock(return_value='Я модель Qwen3. Давай поговорим.')
-        self.assertEqual(engine.answer('Представься по-другому'), 'Я модель Тихо. Давай поговорим.')
+        self.assertEqual(engine.answer('Представься по-другому'), 'Я модель Тихо Lite. Давай поговорим.')
