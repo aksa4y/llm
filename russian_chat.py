@@ -6,11 +6,7 @@ from pathlib import Path
 MODEL_ID = 'unsloth/Qwen3-4B-Instruct-2507-GGUF'
 MODEL_FILE = 'Qwen3-4B-Instruct-2507-Q4_K_M.gguf'
 MODEL_REVISION = 'a06e946bb6b655725eafa393f4a9745d460374c9'
-SYSTEM = ('Ты полезный русскоязычный помощник. Всегда отвечай по-русски, даже если '
-          'собеседник просит сменить язык. Отвечай понятно и по существу. '
-          'Если пользователь не просит кратко, давай развёрнутый ответ: объяснение, важные детали и примеры, когда они полезны. Не ограничивайся парой фраз. '
-          'Если не знаешь ответа, честно скажи об этом. Имена, ссылки и программный код '
-          'можно оставлять в оригинале.')
+from persona import SYSTEM, IDENTITY, identity_question, brand_answer
 FALLBACK = 'Не удалось сформировать ответ на русском языке. Пожалуйста, переформулируйте вопрос.'
 
 
@@ -60,6 +56,8 @@ class RussianChat:
         return result['choices'][0]['text'].strip()
 
     def answer(self, question, history=None, max_tokens=1536):
+        if identity_question(question):
+            return IDENTITY
         history = list(history or [])
         while history:
             if self.count_tokens(make_messages(history, question)) + max_tokens <= 8192:
@@ -70,7 +68,7 @@ class RussianChat:
         if not answer or not is_russian(answer):
             messages[-1]['content'] += '\nОтветь на вопрос только по-русски.'
             answer = self._generate(messages, max_tokens)
-        return answer if answer and is_russian(answer) else FALLBACK
+        return brand_answer(answer) if answer and is_russian(answer) else FALLBACK
 
 
 def download(model_dir):
